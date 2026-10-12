@@ -1,0 +1,1561 @@
+WEBDEV3 — Web Framework Laravel Development
+Week 10 Student Guide
+Authentication and Authorization
+Start from a fresh Laravel project, install Laravel Breeze for login, registration and password reset, protect routes, then authorize actions with gates and policies, including resource ownership and a simple role system.
+Lecture (2 hrs)  •  Laboratory (3 hrs)
+Assessment: Quiz 8 (authentication concepts)  •  Lab Exercise 8 (auth-protected application with a working policy)
+Prerequisites: XAMPP (PHP 8.2+ and MySQL/MariaDB), Composer, Node.js 20.19+ with npm, Git. No earlier project is needed: everything is built from a fresh install.
+Tested with Laravel 12 and 13 · Laravel Breeze 2.4 · MySQL/MariaDB
+Contents
+1. What You Will Learn This Week	3
+1.1 What you will build	3
+1.2 How to read the code boxes	4
+2. Getting Started: Fresh Project	4
+2.1 Check your tools	4
+2.2 Create the project	5
+2.3 Switch the database to MySQL (XAMPP)	6
+2.4 Run it and make the first commit	7
+3. Part A: Authentication with Laravel Breeze	7
+3.1 Install Breeze	7
+3.2 What Breeze added	8
+3.3 Try it	8
+3.4 What happens on login	9
+3.5 Using the authenticated user	9
+3.6 Commit	10
+4. Part B: A Course Resource Owned by Users	10
+4.1 Generate the files	10
+4.2 Migrations	10
+4.3 Models	12
+4.4 Factory, seeder and demo accounts	14
+4.5 Form Request	16
+4.6 Controller	17
+4.7 Views	18
+4.8 Auth-aware navigation	21
+4.9 Routes	23
+4.10 Checkpoint: the problem	24
+5. Part C: Authorization	25
+5.1 Gates (simple, closure-based)	25
+5.2 Simple roles and an /admin area	25
+5.3 Policies (one class per model)	29
+5.4 Enforce the policy in the controller	30
+5.5 Enforce it in the Form Request too	32
+5.6 Hide what the user cannot do (Blade)	33
+5.7 Alternative: authorize in the route	35
+5.8 Checkpoint: test every role	35
+5.9 Extras worth knowing	36
+6. Lab Exercise 8: Auth-Protected Application with a Working Policy	36
+6.1 Requirements	36
+6.2 Build order	37
+6.3 Demo script	37
+7. Troubleshooting and Quiz Review	37
+7.1 Common errors	37
+7.2 Quiz 8 self-check	39
+8. Self-Directed Activity: "Library Accounts and Staff"	39
+8.1 Tasks	39
+8.2 Self-review	40
+8.3 Stretch goals	40
+8.4 Reflection	41
+References	41
+1. What You Will Learn This Week
+You start with an empty Laravel install and end with a small course catalogue that has two separate security layers: authentication (who are you?) and authorization (what are you allowed to do?). Laravel Breeze gives you a complete login system in minutes. You then write the rules yourself with gates, a policy, and a simple role system.
+Learning competencies:
+Distinguish authentication from authorization; understand session and token guards.
+Implement authentication with a starter kit (Laravel Breeze) and protect routes.
+Authorize actions with gates and policies; manage simple roles.
+Assessment: Quiz 8 and Lab Exercise 8 (an auth-protected application with a policy that enforces resource ownership, plus a simple role check).
+Authentication vs authorization
+Authentication
+Authorization
+Question
+Who is this?
+May they do this?
+Mechanism
+Login, sessions, tokens, guards
+Gates, policies, roles
+Failure
+Redirect to login (web) / 401 (API)
+403 Forbidden
+Laravel tools
+Auth facade, auth middleware, Breeze, Sanctum
+Gate, policy classes, can middleware, @can
+Guards
+A guard defines how users are authenticated on each request. The web guard uses the session: a cookie identifies the logged-in user. The sanctum (API) guard uses a bearer token in the Authorization header, which is what APIs use. Both are configured in config/auth.php. This week uses only the web guard.
+1.1 What you will build
+A course catalogue with four kinds of visitor. This table is the specification: by the end of Part C your app must behave exactly like this.
+Action
+Guest
+Student
+Instructor
+Admin
+Browse active courses
+Yes
+Yes
+Yes
+Yes
+See an inactive course
+No (403)
+No (403)
+Own only
+Yes
+Create a course
+→ login
+No (403)
+Yes
+Yes
+Edit / update a course
+→ login
+No (403)
+Own only
+Any
+Delete a course
+→ login
+No (403)
+Own, if no students enrolled
+Any
+Open /admin
+→ login
+No (403)
+No (403)
+Yes
+1.2 How to read the code boxes
+Every code box has a label so you always know what to do with it:
+Label
+What to do
+RUN IN TERMINAL
+Type the commands in a terminal opened in your project folder, one line at a time.
+NEW FILE
+Create the file at the path shown and paste the whole box.
+REPLACE ENTIRE FILE
+Open the existing file, delete everything in it, and paste the whole box.
+EDIT
+Change only the part shown; the text tells you where.
+REFERENCE ONLY
+Explains an idea or an alternative. Do not paste it into your project.
+Tested build
+Every command and file in this guide was run in order on a fresh project, on both Laravel 12 and Laravel 13 with Breeze 2.4 and a MySQL/MariaDB database set up the way XAMPP sets it up (user root, no password). If you follow the steps exactly, it works. If something breaks, compare your file with the box, then check §7.1.
+2. Getting Started: Fresh Project
+This guide is self-contained. Do not reuse a project from another week. Start clean so your results match the guide exactly.
+2.1 Check your tools
+This course uses XAMPP for PHP and MySQL. Open the XAMPP Control Panel and click Start next to Apache and MySQL. Apache is only needed for phpMyAdmin; Laravel has its own development server. Then open a terminal (Command Prompt, PowerShell, or the VS Code terminal) and check your tools:
+ RUN IN TERMINAL 
+php -v
+composer -V
+node -v
+npm -v
+git --version
+Tool
+Minimum
+Notes
+XAMPP
+MySQL/MariaDB 10.4+ running
+Any XAMPP 8.x. MySQL must show green in the Control Panel.
+PHP (XAMPP's)
+8.2
+php -v must work in a terminal, so C:\xampp\php must be on PATH (the Composer setup asks for it). PHP 8.2 installs Laravel 12; PHP 8.3+ installs Laravel 13. This guide works with both.
+PHP extensions
+pdo_mysql, mbstring, openssl, fileinfo, curl, zip
+In C:\xampp\php\php.ini, make sure these extension= lines have no ; in front. zip is often off and makes Composer very slow. Restart the terminal after editing.
+Composer
+2.x
+Node.js / npm
+Node 20.19+ (22 LTS recommended)
+Breeze builds its CSS and JavaScript with Vite.
+Git
+any
+Used to commit after each part.
+2.2 Create the project
+ RUN IN TERMINAL 
+composer create-project laravel/laravel auth-lab-w10
+cd auth-lab-w10
+Composer downloads Laravel, creates .env and generates the app key. New Laravel projects default to SQLite, so at the end Composer also creates database/database.sqlite and tries to migrate it.
+Seeing a red "could not find driver" at the end?
+That message is about SQLite, which XAMPP's PHP usually has switched off. Ignore it. You switch the project to MySQL in the next step, and the project itself was created correctly.
+Using the Laravel installer instead?
+If you prefer laravel new auth-lab-w10, answer the prompts with starter kit: None and database: MySQL, then answer No to running the default migrations (create the database first, as in §2.3). You get the same project. Do not pick React, Vue or Livewire: those are different starter kits. Breeze is installed in Part A.
+2.3 Switch the database to MySQL (XAMPP)
+Make sure MySQL (and Apache, for phpMyAdmin) are running in the XAMPP Control Panel.
+Create an empty database. Open http://localhost/phpmyadmin, click New, enter the name auth_lab_w10, choose the collation utf8mb4_unicode_ci and click Create. Or open the SQL tab and run:
+ RUN IN phpMyAdmin > SQL TAB 
+CREATE DATABASE auth_lab_w10 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+Open .env in the project folder. Find these six lines (the last five start with #):
+ REFERENCE ONLY - DO NOT PASTE    .env (before)
+DB_CONNECTION=sqlite
+# DB_HOST=127.0.0.1
+# DB_PORT=3306
+# DB_DATABASE=laravel
+# DB_USERNAME=root
+# DB_PASSWORD=
+Replace all six with these lines. XAMPP's MySQL user is root with an empty password, so leave DB_PASSWORD= blank unless you set a password yourself.
+ EDIT    .env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=auth_lab_w10
+DB_USERNAME=root
+DB_PASSWORD=
+Clear the cached configuration and create the default tables in MySQL:
+ RUN IN TERMINAL 
+php artisan config:clear
+php artisan migrate
+You should see create_users_table, create_cache_table and create_jobs_table marked DONE. Refresh phpMyAdmin: auth_lab_w10 now has the tables users, password_reset_tokens, sessions, cache, cache_locks, jobs, job_batches, failed_jobs and migrations.
+Optional: delete database/database.sqlite. It is no longer used.
+Not the defaults?
+If you gave MySQL's root user a password, put it in DB_PASSWORD. If XAMPP's MySQL runs on another port (for example 3307, because 3306 was taken), change DB_PORT. After any .env change, run php artisan config:clear.
+2.4 Run it and make the first commit
+ RUN IN TERMINAL 
+php artisan serve
+Open http://127.0.0.1:8000. You should see the Laravel welcome page. Stop the server with Ctrl+C, then commit:
+ RUN IN TERMINAL 
+git init
+git add -A
+git commit -m "Fresh Laravel project"
+3. Part A: Authentication with Laravel Breeze
+3.1 Install Breeze
+Install Breeze first, before writing any routes or views
+breeze:install overwrites routes/web.php, the layouts and some config files. Anything you wrote there before installing Breeze is lost. That is why this guide installs Breeze immediately, on the clean project, and builds the Course feature afterwards.
+ RUN IN TERMINAL 
+composer require laravel/breeze --dev
+php artisan breeze:install blade
+php artisan migrate
+Passing blade selects the Blade with Alpine stack and skips the questions (no dark mode, PHPUnit tests). This matches what you have learned so far.
+breeze:install runs npm install and npm run build for you. Wait until you see "Breeze scaffolding installed successfully".
+php artisan migrate will say "Nothing to migrate". That is correct: the tables Breeze needs (users, password_reset_tokens, sessions) already exist.
+3.2 What Breeze added
+Location
+What
+routes/auth.php
+Register, login, logout, forgot/reset password, email verification and confirm-password routes
+app/Http/Controllers/Auth/
+One controller per auth feature
+app/Http/Requests/Auth/LoginRequest.php
+Login validation and rate limiting (5 attempts per email + IP)
+app/Http/Controllers/ProfileController.php
+Edit profile, change password, delete account
+resources/views/auth/, layouts/, profile/, components/
+Blade views, the <x-app-layout> / <x-guest-layout> layouts and form components (Tailwind CSS)
+routes/web.php
+Rewritten: /dashboard and /profile routes behind the auth middleware
+tests/Feature/Auth/
+Ready-made tests for the auth screens
+3.3 Try it
+From now on, keep two terminals open in the project folder while you work:
+ RUN IN TERMINAL 
+# Terminal 1 - the PHP server
+php artisan serve
+ 
+# Terminal 2 - Vite: rebuilds the CSS as you add new views
+npm run dev
+Why npm run dev?
+Tailwind only generates the CSS classes it finds in your views. With npm run dev running, new classes in the views you add later appear immediately. If you stop it, run npm run build once so that the built CSS is up to date.
+Visit http://127.0.0.1:8000/register and create an account. You land on /dashboard ("You're logged in!").
+Use the menu at the top right to Log Out, then log in again at /login.
+Log out, open /forgot-password and submit your email. New projects use MAIL_MAILER=log, so no email is sent. Open storage/logs/laravel.log and scroll to the bottom: the reset link is there. Copy it into the browser and set a new password.
+While logged out, visit http://127.0.0.1:8000/dashboard. You are redirected to /login. That is the auth middleware at work.
+3.4 What happens on login
+LoginRequest validates the email and password and checks the throttle (5 attempts per minute per email + IP).
+Auth::attempt($credentials, $remember) finds the user by email and verifies the hashed password.
+On success the session ID is regenerated (this prevents session fixation) and the user's ID is stored in the session.
+On every later request the web guard reads the session cookie and loads the User model, available as auth()->user() or $request->user().
+If the user was sent to /login by the auth middleware, redirect()->intended() returns them to the page they originally asked for.
+Passwords
+Never store plain passwords. Laravel hashes them with bcrypt through the 'password' => 'hashed' cast on the User model. Never compare passwords with ==. Always use Hash::check() or Auth::attempt().
+3.5 Using the authenticated user
+ REFERENCE ONLY - DO NOT PASTE 
+// In controllers
+$user = $request->user();          // or auth()->user(), Auth::user()
+$id   = auth()->id();
+if (auth()->check()) { /* logged in */ }
+if (auth()->guest()) { /* not logged in */ }
+ 
+// In Blade
+@auth  Hello, {{ auth()->user()->name }}  @endauth
+@guest <a href="{{ route('login') }}">Log in</a> @endguest
+3.6 Commit
+ RUN IN TERMINAL 
+git add -A
+git commit -m "Part A: install Breeze"
+4. Part B: A Course Resource Owned by Users
+You need something worth protecting: courses that belong to the instructor who created them. In this part you build the data and the CRUD screens and put the write actions behind login. At the end of Part B, any logged-in user can still edit any course. Part C fixes that.
+4.1 Generate the files
+ RUN IN TERMINAL 
+php artisan make:migration add_role_to_users_table --table=users
+php artisan make:model Course -mf
+php artisan make:migration create_course_user_table
+php artisan make:request CourseRequest
+php artisan make:controller CourseController --resource --model=Course
+make:model Course -mf creates the model, its migration (-m) and its factory (-f). The migration file names start with the current date and time; below they are shown as xxxx_xx_xx_xxxxxx_....
+4.2 Migrations
+Role column on users. Every user gets a role. New registrations are student by default; the other roles are instructor and admin. Part C uses this column. In MySQL, ->after('email') places the new column right after email.
+ REPLACE ENTIRE FILE    database/migrations/xxxx_xx_xx_xxxxxx_add_role_to_users_table.php
+<?php
+ 
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+ 
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            // student | instructor | admin
+            $table->string('role', 20)->default('student')->after('email');
+        });
+    }
+ 
+    public function down(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('role');
+        });
+    }
+};
+Courses table. user_id stores the course owner. constrained() adds a real MySQL foreign key to users.id, and cascadeOnDelete() makes MySQL delete a user's courses when the user is deleted.
+ REPLACE ENTIRE FILE    database/migrations/xxxx_xx_xx_xxxxxx_create_courses_table.php
+<?php
+ 
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+ 
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('courses', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')            // the owner (instructor)
+                  ->constrained()
+                  ->cascadeOnDelete();
+            $table->string('code', 20)->unique();
+            $table->string('title');
+            $table->unsignedTinyInteger('units')->default(3);
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+    }
+ 
+    public function down(): void
+    {
+        Schema::dropIfExists('courses');
+    }
+};
+Enrolment pivot table. This links students to the courses they take. The policy in Part C uses it: an instructor cannot delete a course that has students.
+ REPLACE ENTIRE FILE    database/migrations/xxxx_xx_xx_xxxxxx_create_course_user_table.php
+<?php
+ 
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+ 
+return new class extends Migration
+{
+    public function up(): void
+    {
+        // Pivot table: which students are enrolled in which course
+        Schema::create('course_user', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('course_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->timestamps();
+ 
+            $table->unique(['course_id', 'user_id']);
+        });
+    }
+ 
+    public function down(): void
+    {
+        Schema::dropIfExists('course_user');
+    }
+};
+4.3 Models
+Replace the generated User model. It adds the two relationships and the role helpers used later.
+ REPLACE ENTIRE FILE    app/Models/User.php
+<?php
+ 
+namespace App\Models;
+ 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+ 
+class User extends Authenticatable
+{
+    use HasFactory, Notifiable;
+ 
+    // 'role' is deliberately NOT fillable: a user must never be able
+    // to promote themselves by adding role=admin to a form.
+    protected $fillable = ['name', 'email', 'password'];
+ 
+    protected $hidden = ['password', 'remember_token'];
+ 
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+ 
+    // Courses this user OWNS (teaches)
+    public function courses(): HasMany
+    {
+        return $this->hasMany(Course::class);
+    }
+ 
+    // Courses this user is ENROLLED in (as a student)
+    public function enrolledCourses(): BelongsToMany
+    {
+        return $this->belongsToMany(Course::class)->withTimestamps();
+    }
+ 
+    // ---- Role helpers (used in Part B and Part C) ----
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+ 
+    public function isInstructor(): bool
+    {
+        return $this->role === 'instructor';
+    }
+ 
+    public function hasRole(string ...$roles): bool
+    {
+        return in_array($this->role, $roles, true);
+    }
+}
+Laravel 13 note
+Laravel 13 generates the User model with #[Fillable] / #[Hidden] attributes instead of $fillable / $hidden properties. Both styles work in Laravel 13. This guide uses the properties so that the same file also works in Laravel 12.
+ REPLACE ENTIRE FILE    app/Models/Course.php
+<?php
+ 
+namespace App\Models;
+ 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+ 
+class Course extends Model
+{
+    use HasFactory;
+ 
+    // user_id is NOT fillable: the owner is always set on the server
+    protected $fillable = ['code', 'title', 'units', 'is_active'];
+ 
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
+ 
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+ 
+    public function students(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)->withTimestamps();
+    }
+}
+Mass assignment: why user_id and role are not fillable
+Anything in $fillable can be set from form input. If role were fillable, a user could add role=admin to the registration form with the browser dev tools. If user_id were fillable, a user could create courses in someone else's name. Set these values on the server instead.
+4.4 Factory, seeder and demo accounts
+ REPLACE ENTIRE FILE    database/factories/CourseFactory.php
+<?php
+ 
+namespace Database\Factories;
+ 
+use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Factory;
+ 
+class CourseFactory extends Factory
+{
+    public function definition(): array
+    {
+        return [
+            'user_id'   => User::factory(),
+            'code'      => strtoupper(fake()->unique()->lexify('???'))
+                           . fake()->numberBetween(100, 499),
+            'title'     => ucwords(fake()->words(3, true)),
+            'units'     => fake()->randomElement([2, 3, 4]),
+            'is_active' => true,
+        ];
+    }
+ 
+    public function inactive(): static
+    {
+        return $this->state(fn () => ['is_active' => false]);
+    }
+}
+ REPLACE ENTIRE FILE    database/seeders/DatabaseSeeder.php
+<?php
+ 
+namespace Database\Seeders;
+ 
+use App\Models\Course;
+use App\Models\User;
+use Illuminate\Database\Seeder;
+ 
+class DatabaseSeeder extends Seeder
+{
+    public function run(): void
+    {
+        // Demo accounts - every password is: password
+        User::factory()->create([
+            'name' => 'Admin User', 'email' => 'admin@example.com',
+            'role' => 'admin',
+        ]);
+        $ana = User::factory()->create([
+            'name' => 'Ana Instructor', 'email' => 'ana@example.com',
+            'role' => 'instructor',
+        ]);
+        $ben = User::factory()->create([
+            'name' => 'Ben Instructor', 'email' => 'ben@example.com',
+            'role' => 'instructor',
+        ]);
+        $carla = User::factory()->create([
+            'name' => 'Carla Student', 'email' => 'carla@example.com',
+            'role' => 'student',
+        ]);
+ 
+        // Ana owns 3 courses (one inactive); Ben owns 3
+        $anaCourses = Course::factory(2)->for($ana, 'owner')->create();
+        Course::factory()->inactive()->for($ana, 'owner')->create();
+        Course::factory(3)->for($ben, 'owner')->create();
+ 
+        // Carla is enrolled in Ana's first course, so that course cannot be deleted
+        $anaCourses->first()->students()->attach($carla);
+    }
+}
+ RUN IN TERMINAL 
+php artisan migrate:fresh --seed
+migrate:fresh drops every table in auth_lab_w10 and runs all migrations again, so the account you registered in Part A is gone. In phpMyAdmin, open courses: each row has a user_id, and the Structure → Relation view tab shows the foreign key to users. Use these demo accounts from now on:
+Email
+Password
+Role
+Owns
+admin@example.com
+password
+admin
+nothing (but may do everything)
+ana@example.com
+password
+instructor
+3 courses (1 inactive); Carla is enrolled in her first course
+ben@example.com
+password
+instructor
+3 courses
+carla@example.com
+password
+student
+nothing
+4.5 Form Request
+Rule::unique(...)->ignore(...) lets a course keep its own code when you edit it, but still rejects a code that another course already uses. authorize() returns true for now. Part C turns it into a real check.
+ REPLACE ENTIRE FILE    app/Http/Requests/CourseRequest.php
+<?php
+ 
+namespace App\Http\Requests;
+ 
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+ 
+class CourseRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true; // Part C replaces this with a policy check
+    }
+ 
+    public function rules(): array
+    {
+        return [
+            'code'      => [
+                'required', 'string', 'max:20',
+                Rule::unique('courses', 'code')->ignore($this->route('course')),
+            ],
+            'title'     => ['required', 'string', 'max:255'],
+            'units'     => ['required', 'integer', 'between:1,6'],
+            'is_active' => ['boolean'],
+        ];
+    }
+}
+4.6 Controller
+Look at store(): the owner is taken from the logged-in user through the relationship. The form never sends a user_id, and even if someone adds one by hand, it is ignored.
+ REPLACE ENTIRE FILE    app/Http/Controllers/CourseController.php
+<?php
+ 
+namespace App\Http\Controllers;
+ 
+use App\Http\Requests\CourseRequest;
+use App\Models\Course;
+ 
+class CourseController extends Controller
+{
+    public function index()
+    {
+        $courses = Course::with('owner')->orderBy('code')->get();
+ 
+        return view('courses.index', compact('courses'));
+    }
+ 
+    public function create()
+    {
+        $course = new Course(['units' => 3, 'is_active' => true]);
+ 
+        return view('courses.form', compact('course'));
+    }
+ 
+    public function store(CourseRequest $request)
+    {
+        // The owner comes from the logged-in user, NEVER from the form
+        $course = $request->user()->courses()->create($request->validated());
+ 
+        return redirect()->route('courses.show', $course)
+            ->with('status', 'Course created.');
+    }
+ 
+    public function show(Course $course)
+    {
+        $course->load('owner')->loadCount('students');
+ 
+        return view('courses.show', compact('course'));
+    }
+ 
+    public function edit(Course $course)
+    {
+        return view('courses.form', compact('course'));
+    }
+ 
+    public function update(CourseRequest $request, Course $course)
+    {
+        $course->update($request->validated());
+ 
+        return redirect()->route('courses.show', $course)
+            ->with('status', 'Course updated.');
+    }
+ 
+    public function destroy(Course $course)
+    {
+        $course->delete();
+ 
+        return redirect()->route('courses.index')->with('status', 'Course deleted.');
+    }
+}
+4.7 Views
+Create the folder resources/views/courses, then create the three views. They use Breeze's <x-app-layout> and form components, so the whole site shares one layout.
+ NEW FILE    resources/views/courses/index.blade.php
+<x-app-layout>
+  <x-slot name="header">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold text-xl text-gray-800">Courses</h2>
+      <a href="{{ route('courses.create') }}" class="text-indigo-600">+ New course</a>
+    </div>
+  </x-slot>
+ 
+  <div class="py-8 max-w-5xl mx-auto px-4">
+    @if (session('status'))
+      <p class="mb-4 rounded bg-green-100 px-4 py-2">{{ session('status') }}</p>
+    @endif
+ 
+    <div class="bg-white shadow rounded divide-y">
+      @forelse ($courses as $course)
+        <a href="{{ route('courses.show', $course) }}"
+         class="block px-4 py-3 hover:bg-gray-50">
+          <b>{{ $course->code }}</b> - {{ $course->title }}
+          <span class="text-sm text-gray-500">({{ $course->owner->name }})</span>
+          @unless ($course->is_active)
+            <span class="text-xs text-red-600">inactive</span>
+          @endunless
+        </a>
+      @empty
+        <p class="px-4 py-3 text-gray-500">No courses yet.</p>
+      @endforelse
+    </div>
+  </div>
+</x-app-layout>
+ NEW FILE    resources/views/courses/show.blade.php
+<x-app-layout>
+  <x-slot name="header">
+    <h2 class="font-semibold text-xl text-gray-800">
+      {{ $course->code }} - {{ $course->title }}
+    </h2>
+  </x-slot>
+ 
+  <div class="py-8 max-w-3xl mx-auto px-4">
+    @if (session('status'))
+      <p class="mb-4 rounded bg-green-100 px-4 py-2">{{ session('status') }}</p>
+    @endif
+ 
+    <div class="bg-white shadow rounded p-6 space-y-2">
+      <p><b>Units:</b> {{ $course->units }}</p>
+      <p><b>Status:</b> {{ $course->is_active ? 'Active' : 'Inactive' }}</p>
+      <p><b>Owner:</b> {{ $course->owner->name }}</p>
+      <p><b>Enrolled students:</b> {{ $course->students_count }}</p>
+ 
+      <div class="flex items-center gap-4 pt-4">
+        <a href="{{ route('courses.edit', $course) }}" class="text-indigo-600">Edit</a>
+ 
+        <form method="POST" action="{{ route('courses.destroy', $course) }}">
+          @csrf
+          @method('DELETE')
+          <x-danger-button>Delete</x-danger-button>
+        </form>
+ 
+        <a href="{{ route('courses.index') }}" class="text-gray-600">Back to list</a>
+      </div>
+    </div>
+  </div>
+</x-app-layout>
+ NEW FILE    resources/views/courses/form.blade.php
+<x-app-layout>
+  <x-slot name="header">
+    <h2 class="font-semibold text-xl text-gray-800">
+      {{ $course->exists ? 'Edit ' . $course->code : 'New course' }}
+    </h2>
+  </x-slot>
+ 
+  <div class="py-8 max-w-3xl mx-auto px-4">
+    <form method="POST" class="bg-white shadow rounded p-6 space-y-4"
+       action="{{ $course->exists ? route('courses.update', $course)
+                    : route('courses.store') }}">
+      @csrf
+      @if ($course->exists)
+        @method('PUT')
+      @endif
+ 
+      <div>
+        <x-input-label for="code" value="Code" />
+        <x-text-input id="code" name="code" class="mt-1 block w-full"
+               :value="old('code', $course->code)" required />
+        <x-input-error :messages="$errors->get('code')" class="mt-2" />
+      </div>
+ 
+      <div>
+        <x-input-label for="title" value="Title" />
+        <x-text-input id="title" name="title" class="mt-1 block w-full"
+               :value="old('title', $course->title)" required />
+        <x-input-error :messages="$errors->get('title')" class="mt-2" />
+      </div>
+ 
+      <div>
+        <x-input-label for="units" value="Units" />
+        <x-text-input id="units" name="units" type="number" min="1" max="6"
+               class="mt-1 block w-32"
+               :value="old('units', $course->units)" required />
+        <x-input-error :messages="$errors->get('units')" class="mt-2" />
+      </div>
+ 
+      <div>
+        {{-- the hidden 0 is sent when the checkbox is unticked --}}
+        <input type="hidden" name="is_active" value="0">
+        <label class="inline-flex items-center gap-2">
+          <input type="checkbox" name="is_active" value="1"
+             class="rounded border-gray-300"
+             @checked(old('is_active', $course->is_active))>
+          Active (visible to everyone)
+        </label>
+      </div>
+ 
+      <div class="flex items-center gap-4">
+        <x-primary-button>Save</x-primary-button>
+        <a href="{{ route('courses.index') }}" class="text-gray-600">Cancel</a>
+      </div>
+    </form>
+  </div>
+</x-app-layout>
+4.8 Auth-aware navigation
+Breeze's navigation assumes someone is logged in: it prints Auth::user()->name. On a public page viewed by a guest, that crashes with "Attempt to read property "name" on null". Replace it with a version that uses @auth / @guest:
+ REPLACE ENTIRE FILE    resources/views/layouts/navigation.blade.php
+<nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between h-16">
+ 
+      <!-- Left: logo + links -->
+      <div class="flex">
+        <div class="shrink-0 flex items-center">
+          <a href="{{ route('courses.index') }}">
+            <x-application-logo class="block h-9 w-auto fill-current text-gray-800" />
+          </a>
+        </div>
+ 
+        <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+          <x-nav-link :href="route('courses.index')"
+                      :active="request()->routeIs('courses.*')">Courses</x-nav-link>
+          @auth
+            <x-nav-link :href="route('dashboard')"
+                        :active="request()->routeIs('dashboard')">Dashboard</x-nav-link>
+          @endauth
+          @can('manage-users') {{-- gate defined in Part C --}}
+            <x-nav-link :href="route('admin.index')"
+                        :active="request()->routeIs('admin.*')">Admin</x-nav-link>
+          @endcan
+        </div>
+      </div>
+ 
+      <!-- Right: user menu (logged in) or login/register (guest) -->
+      <div class="hidden sm:flex sm:items-center sm:ms-6">
+        @auth
+          <x-dropdown align="right" width="48">
+            <x-slot name="trigger">
+              <button class="px-3 py-2 text-sm font-medium text-gray-500">
+                {{ Auth::user()->name }} ({{ Auth::user()->role }})
+              </button>
+            </x-slot>
+            <x-slot name="content">
+              <x-dropdown-link :href="route('profile.edit')">Profile</x-dropdown-link>
+              <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <x-dropdown-link :href="route('logout')"
+                    onclick="event.preventDefault(); this.closest('form').submit();">
+                  Log Out
+                </x-dropdown-link>
+              </form>
+            </x-slot>
+          </x-dropdown>
+        @endauth
+ 
+        @guest
+          <a href="{{ route('login') }}" class="text-sm text-gray-700">Log in</a>
+          <a href="{{ route('register') }}" class="ms-4 text-sm">Register</a>
+        @endguest
+      </div>
+ 
+      <!-- Hamburger (small screens) -->
+      <div class="-me-2 flex items-center sm:hidden">
+        <button @click="open = ! open" class="p-2 rounded-md text-gray-400">
+          <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+ 
+  <!-- Responsive menu (small screens) -->
+  <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden pb-3 border-t">
+    <x-responsive-nav-link :href="route('courses.index')">Courses</x-responsive-nav-link>
+    @auth
+      <x-responsive-nav-link :href="route('dashboard')">Dashboard</x-responsive-nav-link>
+      <x-responsive-nav-link :href="route('profile.edit')">Profile</x-responsive-nav-link>
+      <form method="POST" action="{{ route('logout') }}">
+        @csrf
+        <x-responsive-nav-link :href="route('logout')"
+            onclick="event.preventDefault(); this.closest('form').submit();">
+          Log Out
+        </x-responsive-nav-link>
+      </form>
+    @else
+      <x-responsive-nav-link :href="route('login')">Log in</x-responsive-nav-link>
+      <x-responsive-nav-link :href="route('register')">Register</x-responsive-nav-link>
+    @endauth
+  </div>
+</nav>
+The Admin link is wrapped in @can('manage-users'). That gate does not exist yet, so the link stays hidden until you add it in Part C.
+4.9 Routes
+Replace Breeze's routes/web.php. It keeps the dashboard and profile routes, adds the course routes, and redirects / to the course list.
+ REPLACE ENTIRE FILE    routes/web.php
+<?php
+ 
+use App\Http\Controllers\CourseController;
+use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Route;
+ 
+Route::get('/', fn () => redirect()->route('courses.index'));
+ 
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->middleware(['auth', 'verified'])->name('dashboard');
+ 
+// Everything in this group requires a logged-in user
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])
+        ->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])
+        ->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])
+        ->name('profile.destroy');
+ 
+    // create, store, edit, update, destroy
+    Route::resource('courses', CourseController::class)->except(['index', 'show']);
+});
+ 
+// Public: index and show. Keep this AFTER the group above, otherwise
+// GET /courses/create would be matched by GET /courses/{course}.
+Route::resource('courses', CourseController::class)->only(['index', 'show']);
+ 
+require __DIR__.'/auth.php';
+Route order matters
+Laravel uses the first route that matches. If the public only(['index', 'show']) line comes first, GET /courses/create matches GET /courses/{course} with {course} = "create" and returns 404. Register the auth group first.
+ RUN IN TERMINAL 
+php artisan route:list --path=courses
+You should see 7 routes: courses.index, create, store, show, edit, update and destroy.
+4.10 Checkpoint: the problem
+Try this
+Expected right now
+Logged out: open /courses and click a course
+List and detail page load (200). Log in / Register links in the menu
+Logged out: open /courses/create
+Redirect to /login (302)
+Log in as carla@example.com and open /courses
+Menu shows "Carla Student (student)"
+As Carla, open one of Ben's courses and click Edit, change the title, Save
+It works (200 / 302). A student just edited an instructor's course!
+Authentication alone is not enough: the app knows who Carla is, but nothing decides what she may do. Commit, then move on to Part C.
+ RUN IN TERMINAL 
+git add -A
+git commit -m "Part B: courses owned by users"
+5. Part C: Authorization
+5.1 Gates (simple, closure-based)
+A gate is a named yes/no rule. It suits checks that are not about one particular model, like "may this user manage users?". Gates are defined in AppServiceProvider::boot(). You add a real one in §5.2. This is how they are defined and checked:
+ REFERENCE ONLY - DO NOT PASTE 
+use Illuminate\Support\Facades\Gate;
+ 
+// Define (in AppServiceProvider::boot)
+Gate::define('manage-users', fn (User $user) => $user->isAdmin());
+Gate::define('edit-course', fn (User $user, Course $course) => $user->id === $course->user_id);
+ 
+// Check
+if (Gate::allows('edit-course', $course)) { /* ... */ }
+if ($request->user()->can('edit-course', $course)) { /* ... */ }
+Gate::authorize('manage-users');            // throws -> 403 Forbidden
+ 
+// Blade
+@can('edit-course', $course) <a href="...">Edit</a> @endcan
+When a model has several rules (view, create, update, delete), put them in one policy class instead of many gates. That is §5.3.
+5.2 Simple roles and an /admin area
+The role column and the isAdmin(), isInstructor() and hasRole() helpers already exist from Part B. Now use them in a middleware that protects a whole group of routes.
+Create the middleware:
+ RUN IN TERMINAL 
+php artisan make:middleware EnsureUserHasRole
+ REPLACE ENTIRE FILE    app/Http/Middleware/EnsureUserHasRole.php
+<?php
+ 
+namespace App\Http\Middleware;
+ 
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+ 
+class EnsureUserHasRole
+{
+    /**
+     * Usage in routes: ->middleware('role:admin') or 'role:instructor,admin'
+     */
+    public function handle(Request $request, Closure $next, string ...$roles): Response
+    {
+        if (! $request->user() || ! $request->user()->hasRole(...$roles)) {
+            abort(403, 'You do not have the required role.');
+        }
+ 
+        return $next($request);
+    }
+}
+Give it the short name role. In bootstrap/app.php, find the ->withMiddleware(...) block (it contains only //) and replace that block with this one. Leave the rest of the file as it is.
+ EDIT    bootstrap/app.php
+    ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->alias([
+            'role' => \App\Http\Middleware\EnsureUserHasRole::class,
+        ]);
+    })
+Define the manage-users gate that controls the Admin link in the navigation:
+ REPLACE ENTIRE FILE    app/Providers/AppServiceProvider.php
+<?php
+ 
+namespace App\Providers;
+ 
+use App\Models\User;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\ServiceProvider;
+ 
+class AppServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        //
+    }
+ 
+    public function boot(): void
+    {
+        // A gate is a named yes/no rule that is not tied to one model
+        Gate::define('manage-users', fn (User $user) => $user->isAdmin());
+    }
+}
+Create the admin page (create the folder resources/views/admin first):
+ NEW FILE    resources/views/admin/index.blade.php
+<x-app-layout>
+  <x-slot name="header">
+    <h2 class="font-semibold text-xl text-gray-800">Admin - Users</h2>
+  </x-slot>
+ 
+  <div class="py-8 max-w-5xl mx-auto px-4">
+    <table class="w-full bg-white shadow rounded text-left">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-2">Name</th>
+          <th class="px-4 py-2">Email</th>
+          <th class="px-4 py-2">Role</th>
+          <th class="px-4 py-2">Courses owned</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y">
+        @foreach ($users as $user)
+          <tr>
+            <td class="px-4 py-2">{{ $user->name }}</td>
+            <td class="px-4 py-2">{{ $user->email }}</td>
+            <td class="px-4 py-2">{{ $user->role }}</td>
+            <td class="px-4 py-2">{{ $user->courses_count }}</td>
+          </tr>
+        @endforeach
+      </tbody>
+    </table>
+  </div>
+</x-app-layout>
+Add the admin route group. This is the final version of routes/web.php:
+ REPLACE ENTIRE FILE    routes/web.php
+<?php
+ 
+use App\Http\Controllers\CourseController;
+use App\Http\Controllers\ProfileController;
+use App\Models\User;
+use Illuminate\Support\Facades\Route;
+ 
+Route::get('/', fn () => redirect()->route('courses.index'));
+ 
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->middleware(['auth', 'verified'])->name('dashboard');
+ 
+// Everything in this group requires a logged-in user
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])
+        ->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])
+        ->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])
+        ->name('profile.destroy');
+ 
+    // create, store, edit, update, destroy
+    Route::resource('courses', CourseController::class)->except(['index', 'show']);
+});
+ 
+// Public: index and show. Keep this AFTER the group above, otherwise
+// GET /courses/create would be matched by GET /courses/{course}.
+Route::resource('courses', CourseController::class)->only(['index', 'show']);
+ 
+// Admin area: must be logged in AND have the admin role
+Route::middleware(['auth', 'role:admin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/', function () {
+            $users = User::withCount('courses')->orderBy('role')->orderBy('name')->get();
+ 
+            return view('admin.index', compact('users'));
+        })->name('index');
+    });
+ 
+require __DIR__.'/auth.php';
+Test it. As admin@example.com, the Admin link appears and /admin lists the users. As ana@example.com, /admin returns 403. Logged out, /admin redirects to /login, because auth runs before role.
+The middleware accepts several roles: ->middleware('role:instructor,admin') lets both roles in.
+5.3 Policies (one class per model)
+Generate the policy:
+ RUN IN TERMINAL 
+php artisan make:policy CoursePolicy --model=Course
+Replace it with the rules from the specification in §1.1:
+ REPLACE ENTIRE FILE    app/Policies/CoursePolicy.php
+<?php
+ 
+namespace App\Policies;
+ 
+use App\Models\Course;
+use App\Models\User;
+ 
+class CoursePolicy
+{
+    /**
+     * Runs before every other method.
+     * true = allow, false = deny, null = "no opinion, run the normal method".
+     */
+    public function before(User $user, string $ability): ?bool
+    {
+        return $user->isAdmin() ? true : null;
+    }
+ 
+    // ?User means guests are allowed to reach this check
+    public function viewAny(?User $user): bool
+    {
+        return true;
+    }
+ 
+    public function view(?User $user, Course $course): bool
+    {
+        // Active courses are public; inactive ones only for their owner
+        return $course->is_active || ($user && $user->id === $course->user_id);
+    }
+ 
+    public function create(User $user): bool
+    {
+        return $user->hasRole('instructor', 'admin');
+    }
+ 
+    public function update(User $user, Course $course): bool
+    {
+        return $user->id === $course->user_id;
+    }
+ 
+    public function delete(User $user, Course $course): bool
+    {
+        // Owners may delete only courses with no enrolled students
+        return $user->id === $course->user_id
+            && $course->students()->doesntExist();
+    }
+}
+How it is found: Laravel auto-discovers App\Policies\CoursePolicy for App\Models\Course because of the naming convention, so there is nothing to register. before() runs first: true allows, false denies, and null means "no opinion, run the normal method". ?User (nullable) lets guests reach viewAny and view. For methods with a plain User parameter, guests are denied automatically.
+5.4 Enforce the policy in the controller
+Each action calls Gate::authorize(ability, model). If the policy says no, Laravel stops the request with 403 Forbidden.
+ REPLACE ENTIRE FILE    app/Http/Controllers/CourseController.php
+<?php
+ 
+namespace App\Http\Controllers;
+ 
+use App\Http\Requests\CourseRequest;
+use App\Models\Course;
+use Illuminate\Support\Facades\Gate;
+ 
+class CourseController extends Controller
+{
+    public function index()
+    {
+        Gate::authorize('viewAny', Course::class);
+ 
+        $courses = Course::with('owner')->orderBy('code')->get();
+ 
+        return view('courses.index', compact('courses'));
+    }
+ 
+    public function create()
+    {
+        Gate::authorize('create', Course::class);
+ 
+        $course = new Course(['units' => 3, 'is_active' => true]);
+ 
+        return view('courses.form', compact('course'));
+    }
+ 
+    public function store(CourseRequest $request)
+    {
+        Gate::authorize('create', Course::class);
+ 
+        // The owner comes from the logged-in user, NEVER from the form
+        $course = $request->user()->courses()->create($request->validated());
+ 
+        return redirect()->route('courses.show', $course)
+            ->with('status', 'Course created.');
+    }
+ 
+    public function show(Course $course)
+    {
+        Gate::authorize('view', $course);
+ 
+        $course->load('owner')->loadCount('students');
+ 
+        return view('courses.show', compact('course'));
+    }
+ 
+    public function edit(Course $course)
+    {
+        Gate::authorize('update', $course);   // 403 if denied
+ 
+        return view('courses.form', compact('course'));
+    }
+ 
+    public function update(CourseRequest $request, Course $course)
+    {
+        Gate::authorize('update', $course);
+ 
+        $course->update($request->validated());
+ 
+        return redirect()->route('courses.show', $course)
+            ->with('status', 'Course updated.');
+    }
+ 
+    public function destroy(Course $course)
+    {
+        Gate::authorize('delete', $course);
+ 
+        $course->delete();
+ 
+        return redirect()->route('courses.index')->with('status', 'Course deleted.');
+    }
+}
+Why not $this->authorize() or authorizeResource()?
+Since Laravel 11 the base app/Http/Controllers/Controller.php is empty. $this->authorize() only works after you add use Illuminate\Foundation\Auth\Access\AuthorizesRequests; and use AuthorizesRequests; to that base class.
+$this->authorizeResource(Course::class, 'course') in a constructor no longer works even with the trait: it fails with "Call to undefined method CourseController::middleware()". Use Gate::authorize() in each method, as above.
+Ability names to remember: index → viewAny, show → view, create/store → create, edit/update → update, destroy → delete.
+5.5 Enforce it in the Form Request too
+A Form Request's authorize() runs before validation. Returning false gives a 403 without even validating the input.
+ REPLACE ENTIRE FILE    app/Http/Requests/CourseRequest.php
+<?php
+ 
+namespace App\Http\Requests;
+ 
+use App\Models\Course;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+ 
+class CourseRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        // a Course model when updating, null when creating
+        $course = $this->route('course');
+ 
+        return $course
+            ? $this->user()->can('update', $course)
+            : $this->user()->can('create', Course::class);
+    }
+ 
+    public function rules(): array
+    {
+        return [
+            'code'      => [
+                'required', 'string', 'max:20',
+                Rule::unique('courses', 'code')->ignore($this->route('course')),
+            ],
+            'title'     => ['required', 'string', 'max:255'],
+            'units'     => ['required', 'integer', 'between:1,6'],
+            'is_active' => ['boolean'],
+        ];
+    }
+}
+5.6 Hide what the user cannot do (Blade)
+@can / @elsecan / @endcan ask the same policy. The index hides the New course link and inactive courses; the show page hides Edit and Delete and explains why an owner cannot delete.
+ REPLACE ENTIRE FILE    resources/views/courses/index.blade.php
+<x-app-layout>
+  <x-slot name="header">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold text-xl text-gray-800">Courses</h2>
+      @can('create', App\Models\Course::class)
+        <a href="{{ route('courses.create') }}" class="text-indigo-600">+ New course</a>
+      @endcan
+    </div>
+  </x-slot>
+ 
+  <div class="py-8 max-w-5xl mx-auto px-4">
+    @if (session('status'))
+      <p class="mb-4 rounded bg-green-100 px-4 py-2">{{ session('status') }}</p>
+    @endif
+ 
+    <div class="bg-white shadow rounded divide-y">
+      @forelse ($courses as $course)
+        @can('view', $course) {{-- hides inactive courses from non-owners --}}
+          <a href="{{ route('courses.show', $course) }}"
+           class="block px-4 py-3 hover:bg-gray-50">
+            <b>{{ $course->code }}</b> - {{ $course->title }}
+            <span class="text-sm text-gray-500">({{ $course->owner->name }})</span>
+            @unless ($course->is_active)
+              <span class="text-xs text-red-600">inactive</span>
+            @endunless
+          </a>
+        @endcan
+      @empty
+        <p class="px-4 py-3 text-gray-500">No courses yet.</p>
+      @endforelse
+    </div>
+  </div>
+</x-app-layout>
+ REPLACE ENTIRE FILE    resources/views/courses/show.blade.php
+<x-app-layout>
+  <x-slot name="header">
+    <h2 class="font-semibold text-xl text-gray-800">
+      {{ $course->code }} - {{ $course->title }}
+    </h2>
+  </x-slot>
+ 
+  <div class="py-8 max-w-3xl mx-auto px-4">
+    @if (session('status'))
+      <p class="mb-4 rounded bg-green-100 px-4 py-2">{{ session('status') }}</p>
+    @endif
+ 
+    <div class="bg-white shadow rounded p-6 space-y-2">
+      <p><b>Units:</b> {{ $course->units }}</p>
+      <p><b>Status:</b> {{ $course->is_active ? 'Active' : 'Inactive' }}</p>
+      <p><b>Owner:</b> {{ $course->owner->name }}</p>
+      <p><b>Enrolled students:</b> {{ $course->students_count }}</p>
+ 
+      <div class="flex items-center gap-4 pt-4">
+        @can('update', $course)
+          <a href="{{ route('courses.edit', $course) }}" class="text-indigo-600">Edit</a>
+        @endcan
+ 
+        @can('delete', $course)
+          <form method="POST" action="{{ route('courses.destroy', $course) }}">
+            @csrf
+            @method('DELETE')
+            <x-danger-button>Delete</x-danger-button>
+          </form>
+        @elsecan('update', $course)
+          <small class="text-gray-500">Cannot delete: students are enrolled</small>
+        @endcan
+ 
+        <a href="{{ route('courses.index') }}" class="text-gray-600">Back to list</a>
+      </div>
+    </div>
+  </div>
+</x-app-layout>
+Defence in depth
+Hiding a button with @can is convenience, not security. Anyone can type /courses/4/edit into the address bar or send a request with a tool like Postman. The controller check (§5.4) and the Form Request check (§5.5) are the real guards.
+5.7 Alternative: authorize in the route
+Instead of (or as well as) checking in the controller, a route can check a policy with the can middleware. The second argument must match the route parameter name, {course}. The controller check above already covers this app, so do not add it:
+ REFERENCE ONLY - DO NOT PASTE 
+Route::put('/courses/{course}', [CourseController::class, 'update'])
+    ->middleware('can:update,course');
+ 
+// same thing, shorter
+Route::put('/courses/{course}', [CourseController::class, 'update'])
+    ->can('update', 'course');
+5.8 Checkpoint: test every role
+ RUN IN TERMINAL 
+php artisan migrate:fresh --seed
+Reseed so that you start from known data. Then log in as each account and try every row. Course IDs refer to the seeded data: 1–3 are Ana's (1 has a student, 3 is inactive) and 4–6 are Ben's.
+Who
+Request
+Expected
+guest
+GET /courses  ·  GET /courses/1
+200  ·  200
+guest
+GET /courses/3 (inactive)
+403
+guest
+GET /courses/create  ·  GET /admin
+302 → /login
+carla (student)
+GET /courses/create  ·  GET /courses/4/edit  ·  GET /admin
+403  ·  403  ·  403
+carla (student)
+Open course 1
+200, no Edit or Delete buttons
+ana (instructor)
+Create a course
+302 → its page; owner is Ana
+ana (instructor)
+GET /courses/1/edit  ·  GET /courses/3
+200  ·  200 (own inactive course)
+ana (instructor)
+GET /courses/4/edit (Ben's)
+403
+ana (instructor)
+Open course 1
+Edit link + "Cannot delete: students are enrolled"
+ana (instructor)
+Delete course 2 (own, no students)
+302 → /courses
+ben (instructor)
+GET /courses/3 (Ana's inactive)
+403
+admin
+Edit course 4  ·  GET /admin  ·  delete course 1
+200  ·  200  ·  302
+new registration
+Register a new account, then GET /admin
+role is student → 403
+ RUN IN TERMINAL 
+git add -A
+git commit -m "Part C: gates, policy, roles"
+5.9 Extras worth knowing
+Email verification: make User implement Illuminate\Contracts\Auth\MustVerifyEmail and protect routes with the verified middleware. Breeze already has the verification screens.
+Password reset: already working. MAIL_MAILER=log writes the email to storage/logs/laravel.log. Sending real mail is a separate topic.
+Remember me: the login checkbox calls Auth::attempt($credentials, true), which sets a long-lived cookie.
+Log out other devices: Auth::logoutOtherDevices($password). It needs the auth.session middleware on the routes you want to protect.
+Enum roles: a PHP backed enum App\Enums\Role with an enum cast is a clean upgrade from strings (see the stretch goals).
+6. Lab Exercise 8: Auth-Protected Application with a Working Policy
+6.1 Requirements
+Project uses a MySQL database in XAMPP (DB_CONNECTION=mysql)
+Breeze installed; register, login, logout and password reset (to the log) all work
+One consistent layout with auth-aware navigation (@auth / @guest); guests can open public pages without errors
+Main resource has an owner (user_id) that is set on the server in store(). user_id and role are not fillable
+Public routes (index/show) are open; create/store/edit/update/destroy are behind auth
+A policy with before(), viewAny, view, create, update and delete, discovered by naming convention
+Enforcement in the controller (Gate::authorize) and in the Form Request authorize()
+@can / @cannot / @elsecan used in views to hide controls
+Role column with at least admin and one regular role; role middleware protecting an /admin area
+Seeded demo accounts for each role
+Manual test log: which account tried what and got 200/302/403 (use the table in §5.8)
+6.2 Build order
+Time
+Task
+Verify
+0:00–0:20
+Create project, MySQL database, install Breeze, register a user (§2–3)
+Tables in phpMyAdmin; /dashboard works
+0:20–0:50
+Migrations, models, factory, seeder (§4.1–4.4)
+migrate:fresh --seed runs
+0:50–1:20
+Form Request, controller, views, navigation, routes (§4.5–4.9)
+Guest redirected to login on /courses/create
+1:20–1:45
+Role middleware, gate, /admin (§5.2)
+role:admin blocks others
+1:45–2:20
+Policy; controller + Form Request enforcement (§5.3–5.5)
+Non-owner gets 403
+2:20–2:35
+@can in views (§5.6)
+Edit link only for owner/admin
+2:35–3:00
+Test log (§5.8); commit
+git log shows Parts A–C
+6.3 Demo script
+Log in as Ana; create a course; show that it opens with an Edit link and that the owner is Ana.
+Log in as Carla; open Ana's course. There is no Edit link. Type /courses/1/edit by hand → 403.
+Log in as admin; edit Ben's course (before() in action); open /admin.
+Open CoursePolicy and explain before() returning null vs true/false.
+Show where the owner is set (store()) and why user_id is not in $fillable.
+Answer: "Where is the session stored and what is in the cookie?" (Hint: SESSION_DRIVER=database in .env, so sessions are rows in the MySQL sessions table. Look at it in phpMyAdmin while logged in. The cookie holds only an encrypted session ID.)
+7. Troubleshooting and Quiz Review
+7.1 Common errors
+Error / symptom
+Cause
+Fix
+Vite manifest not found / page has no styling
+Assets not built
+Run npm run build, or keep npm run dev running
+New Tailwind classes have no effect
+CSS was built before the view existed
+Keep npm run dev running, or run npm run build again
+could not find driver (at the end of create-project)
+Default SQLite migration; XAMPP's PHP has no SQLite
+Ignore it and switch to MySQL (§2.3)
+SQLSTATE[HY000] [2002] … actively refused it / Connection refused
+MySQL is not running
+Start MySQL in the XAMPP Control Panel
+SQLSTATE[HY000] [1049] Unknown database 'auth_lab_w10'
+Database not created, or name typed differently
+Create it in phpMyAdmin (§2.3); check DB_DATABASE
+SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost'
+DB_PASSWORD does not match MySQL
+Use the XAMPP password (blank by default), then php artisan config:clear
+could not find driver (MySQL)
+pdo_mysql disabled, or another PHP is on PATH
+Enable extension=pdo_mysql; php --ini shows which php.ini is used
+Changes in .env seem ignored
+Cached configuration
+php artisan config:clear
+MySQL will not start in XAMPP
+Port 3306 used by another MySQL service
+Stop the other service, or change the port in my.ini and DB_PORT
+1071 Specified key was too long; max key length is 767 bytes
+Very old MySQL/MariaDB (XAMPP 7.x or older)
+Upgrade XAMPP, or add Schema::defaultStringLength(191); to AppServiceProvider::boot()
+My routes disappeared after installing Breeze
+breeze:install overwrites routes/web.php
+Install Breeze first (§3.1), then add your routes
+Attempt to read property "name" on null (navigation)
+Guest viewing a page with Breeze's original navigation
+Use the auth-aware navigation (§4.8)
+GET /courses/create gives 404
+Public only(['index','show']) registered before the auth group
+Put the auth group first (§4.9)
+1054 Unknown column 'role' / 1146 Table '…course_user' doesn't exist
+Migrations not run after adding them
+php artisan migrate:fresh --seed
+1364 Field 'user_id' doesn't have a default value
+Course::create() used instead of the relationship
+$request->user()->courses()->create(...)
+1062 Duplicate entry … for key 'courses_code_unique'
+Missing unique validation rule
+Use the rules in §4.5
+Route [admin.index] not defined
+Gate added but admin route not added yet
+Finish §5.2 step 5
+Target class [role] does not exist
+Alias not registered
+Edit bootstrap/app.php (§5.2 step 2)
+Call to undefined method …::authorize()
+Base controller has no AuthorizesRequests trait (Laravel 11+)
+Use Gate::authorize() (§5.4)
+Call to undefined method …::middleware()
+authorizeResource() in a constructor (Laravel 11+)
+Remove it; use Gate::authorize() per method
+Policy seems ignored (everyone allowed)
+Policy name/folder mismatch, or no check in controller
+app/Policies/CoursePolicy.php for App\Models\Course; add Gate::authorize
+403 for everyone, including the owner
+before() returns false, or wrong ID compared
+before() must return null to continue; compare $user->id with $course->user_id
+can:update,course middleware gives 404/403
+Parameter name mismatch
+Second argument must match {course}
+7.2 Quiz 8 self-check
+Authentication vs authorization, with the HTTP status each failure produces.
+What is a guard? Name the two you will use in this course and what identifies the user in each.
+What does Auth::attempt() do, step by step?
+Why regenerate the session on login?
+Gate vs policy: when should you use each?
+What does before() return to allow, deny or defer?
+Which policy ability should edit() check? index()? destroy()?
+Why is @can alone not sufficient protection?
+How does the auth middleware remember where to send the user after login?
+How are passwords stored, and which function verifies them?
+Why must role and user_id not be mass-assignable?
+8. Self-Directed Activity: "Library Accounts and Staff"
+About this activity: standalone project
+A standalone mini-project in a brand-new Laravel project. 3 hours. Apply the same steps as this guide to a different domain.
+8.1 Tasks
+Create a brand-new project library-w10 with its own MySQL database library_w10, and install Breeze before anything else (follow §2 and §3.1). Add a role column (member, librarian, admin; default member) to users as in §4.2.
+Build this schema, with factories and a seeder (about 30 minutes; it is deliberately small):
+Table
+Columns
+authors
+id, name, timestamps
+books
+id, author_id FK, isbn string(13) unique, title, published_year smallint, is_reference boolean default false, cover_path nullable, timestamps
+members
+id, user_id FK nullable unique (the login account), name, email unique, timestamps
+book_member (loans)
+id, book_id FK, member_id FK, borrowed_at datetime, returned_at datetime nullable, timestamps
+Seed 10 authors × 4 books, 30 members and 1–3 loans per member, with about 20% still unreturned. Seed one user per role (password: password) and link the member user to a members row. Relationships: Author hasMany Books; Book belongsTo Author; Book belongsToMany Members (pivot with borrowed_at/returned_at); Member belongsToMany Books; User hasOne Member.
+Policies: BookPolicy (only librarians/admins create, update and delete; anyone views). LoanPolicy (a member may view only their own loans; librarians view all; only librarians mark a loan returned). Give both a before() for admins.
+Routes: /my/loans for members (auth); /desk for librarians (role:librarian,admin); /admin/users for admins, with a form to change a user's role (policy: admins only, and an admin cannot demote themselves).
+Add a Borrow button on the book page that attaches the logged-in user's member record ($request->user()->member). There is no member dropdown, and reference books cannot be borrowed.
+Write a test matrix: rows = 3 roles + guest; columns = 8 actions. Fill each cell with the expected status and verify it by hand.
+8.2 Self-review
+Criterion
+Yes / No
+Review
+Breeze installed first; single auth-aware layout
+§3.1, §4.8
+Owner / member set on the server
+§4.6
+Two policies with before()
+§5.3
+Enforcement in controller + Form Request + view
+§5.4–5.6
+Role middleware with multiple roles
+§5.2
+Self-demotion prevented
+§5.3 (policy method with two users)
+Test matrix complete
+§5.8
+8.3 Stretch goals
+Replace the string role with a PHP backed enum and an enum cast.
+Add email verification and require it (verified middleware) for borrowing.
+Log every 403 with the user ID and route, using $exceptions->report(...) in bootstrap/app.php → withExceptions.
+8.4 Reflection
+Why does Laravel separate gates/policies from middleware when both can return 403?
+What would a token-based client (a mobile app) need instead of a session cookie?
+References
+Laravel Docs: Authentication. https://laravel.com/docs/authentication
+Laravel Docs: Authorization (gates and policies). https://laravel.com/docs/authorization
+Laravel Docs: Middleware. https://laravel.com/docs/middleware
+Laravel Breeze (Blade starter kit). https://github.com/laravel/breeze and https://laravel.com/docs/11.x/starter-kits#laravel-breeze
+OWASP Authentication Cheat Sheet. https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
